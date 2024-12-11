@@ -125,8 +125,4 @@ mapped_refferer_with_channel_group as (
 
 select * from mapped_refferer_with_channel_group 
 
-union all 
-
-select * from {{ref('stg_manual_imports')}}
-
 
