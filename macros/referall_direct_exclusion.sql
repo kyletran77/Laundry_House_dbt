@@ -1,0 +1,12 @@
+-- {% macro referral_direct_exclusion(referrer_source, page_referrer_host) %}
+--     {% set domain_hosts = var('domain_hosts') %}
+--     {% set referral_exclusions = var('referral_exclusions') %}
+
+--     {% if referrer_source is not none and referrer_source not in domain_hosts and referrer_source not in referral_exclusions %}
+--          {{referrer_source}}
+--     {% elif page_referrer_host is not none  and page_referrer_host not in domain_hosts and page_referrer_host not in referral_exclusions %}
+--          {{page_referrer_host}}
+--     {% else %}
+--          '(direct/none)'
+--     {% endif %}
+-- {% endmacro %}

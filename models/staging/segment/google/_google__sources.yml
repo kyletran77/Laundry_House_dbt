@@ -1,0 +1,28 @@
+# segment pinterest_ads sources
+version: 2
+
+sources: 
+  - name: google_ads
+    database: head-boards
+    schema: google_ads_updated
+    tables:
+      - name: ad_performance_reports_view
+        loaded_at_field: loaded_at
+        freshness: 
+          warn_after: {count: 12, period: hour}       
+      - name: campaign_performance_reports_view
+        loaded_at_field: loaded_at
+        freshness: 
+          warn_after: {count: 12, period: hour}                 
+      - name: ad_groups_view
+        loaded_at_field: loaded_at
+        freshness: 
+          warn_after: {count: 12, period: hour}       
+      - name: campaigns_view
+        loaded_at_field: loaded_at
+        freshness: 
+          warn_after: {count: 12, period: hour}       
+      - name: ads_view
+        loaded_at_field: loaded_at
+        freshness: 
+          warn_after: {count: 12, period: hour}       

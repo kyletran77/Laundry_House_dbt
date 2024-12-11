@@ -1,0 +1,41 @@
+# segment gtm_server_side sources
+version: 2
+
+sources: 
+  - name: shopify
+    database: head-boards
+    schema: shopify_checkout
+    tables:
+      - name: checkout_started
+        loaded_at_field: loaded_at
+        freshness: 
+          warn_after: {count: 13, period: hour}
+      - name: checkout_updated
+        loaded_at_field: loaded_at
+        freshness: 
+          warn_after: {count: 13, period: hour}      
+      - name: users
+        loaded_at_field: loaded_at
+        freshness: 
+          warn_after: {count: 13, period: hour}      
+sources: 
+  - name: shopify
+    database: head-boards
+    schema: shopify_orders
+    tables:
+      - name: order_completed
+        loaded_at_field: loaded_at
+        freshness: 
+          warn_after: {count: 13, period: hour}
+      - name: order_cancelled
+        loaded_at_field: loaded_at
+        freshness: 
+          warn_after: {count: 13, period: hour}      
+      - name: order_fulfilled
+        loaded_at_field: loaded_at
+        freshness: 
+          warn_after: {count: 13, period: hour}      
+      - name: users
+        loaded_at_field: loaded_at
+        freshness: 
+          warn_after: {count: 13, period: hour}                      

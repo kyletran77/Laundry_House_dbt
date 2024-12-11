@@ -1,0 +1,12 @@
+# segment pinterest_ads sources
+version: 2
+
+sources: 
+  - name: pinterest_ads
+    database: head-boards
+    schema: pinterest_ads
+    tables:
+      - name: ad_group_report
+        loaded_at_field: _fivetran_synced
+        freshness: 
+          warn_after: {count: 12, period: hour}       
