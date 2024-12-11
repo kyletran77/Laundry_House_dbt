@@ -1,7 +1,5 @@
 {% set page_table = source("gtm_server_side", "pages") %}
-{% set tracks_table = source("gtm_server_side", "tracks") %}
 {% set identifies_table = source("gtm_server_side", "identifies") %}
-
 
 with
     anonymous_id_user_id_pairs as (
@@ -12,12 +10,8 @@ with
                 from {{ page_table }}
                 union all
                 select anonymous_id, user_id, sent_at
-                from {{ tracks_table }}
-                union all
-                select anonymous_id, user_id, sent_at
                 from {{ identifies_table }}
             ) as combined
-            
     )
 
 select distinct
