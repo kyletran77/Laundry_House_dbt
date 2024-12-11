@@ -34,8 +34,7 @@
     "page_host": "first_page_host",
     "page_query": "first_page_query",
     "page_path": "first_page_path",
-     "page_path_host": "first_page_path_host",
-   
+    "page_path_host": "first_page_path_host"
 } %}
 
 
@@ -46,8 +45,7 @@
     "page_query": "last_page_query",
     "page_path": "last_page_path",
     "page_host": "last_page_host",
-     "page_path_host": "last_page_path_host",
-
+    "page_path_host": "last_page_path_host"
 } %}
 
 
@@ -78,7 +76,6 @@
             min(sessionized_events.timestamp) as session_start_timestamp,
             max(sessionized_events.timestamp) as session_end_timestamp,
             -- stats about the session
-            count(sessionized_events.track_id) as total_tracks,
             count(sessionized_events.page_view_id) as total_pages,
             timestamp_diff(
                 max(sessionized_events.timestamp),
@@ -90,11 +87,6 @@
             array_agg(
                 struct(
                     sessionized_events.timestamp,
-                    struct(
-                        sessionized_tracks.timestamp,
-                        sessionized_tracks.track_id,
-                        sessionized_tracks.event_name
-                    ) as track_event_records,
                     struct(
                         sessionized_page_views.timestamp,
                         sessionized_page_views.page_view_id,
@@ -108,10 +100,8 @@
                         sessionized_page_views.utm_source,
                         sessionized_page_views.utm_campaign,
                         sessionized_page_views.utm_term,
-                            sessionized_page_views.utm_id
-                    
+                        sessionized_page_views.utm_id
                     ) as page_view_records
-
                 )
                 order by sessionized_events.timestamp asc
             ) as records
@@ -119,8 +109,6 @@
         left join first_and_last_page_values_for_session 
          using (session_id)
 
-        left join
-            {{ ref("int_sessionized_tracks") }} as sessionized_tracks using (track_id)
         left join
             {{ ref("int_sessionized_page_views") }} as sessionized_page_views using(page_view_id)
 
