@@ -10,8 +10,8 @@ with user_events as (
     select
         anonymous_id,
         user_id as email,
-        min(sent_at) as first_seen_at
-    from {{ ref('stg_users_map') }}
+        min(loaded_at) as first_seen_at
+    from {{ source('gtm_server_side', 'identifies') }}  -- Changed to use source directly
     where user_id is not null
     group by anonymous_id, user_id
 ),
