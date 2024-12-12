@@ -33,4 +33,4 @@ aggregated_sales as (
     group by email
 )
 
-select * from aggregated_salesß
+select * from aggregated_sales
