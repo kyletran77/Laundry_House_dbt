@@ -28,7 +28,6 @@ with page_views_w_sessions as (
         page_views.referrer_source,
         page_views.referrer_medium,
         -- device information
-        page_views.device_browser_brand,
         page_views.device_is_mobile,
         page_views.device_platform,
         -- geo information

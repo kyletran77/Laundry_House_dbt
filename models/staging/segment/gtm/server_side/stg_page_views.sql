@@ -33,14 +33,11 @@ page_views as (
         user_id,
 
         -- contextual properties
-        context_edge_region as geo_city,
+        context_edge_city as geo_city,
         context_edge_country as geo_country,
-        context_edge_region_code as geo_region,
+        context_edge_region as geo_region,
         context_ip as ip_address,
-        context_screen_resolution as screen_screen_resolution,
-        context_screen_viewport_size as screen_viewport_size,
         context_user_agent as user_agent,
-        context_user_agent_data_browser_brand as device_browser_brand,
         context_user_agent_data_mobile as device_is_mobile,
         context_user_agent_data_platform as device_platform,
 
@@ -48,7 +45,7 @@ page_views as (
         context_page_path as page_path,
         concat(context_page_path, {{ dbt_utils.get_url_host("context_page_url") }}) as page_path_host,
         context_page_referrer as page_referrer,
-        replace({{ dbt_utils.get_url_host("context_page_referrer") }}, 'www.', '') as page_referrer_host,
+        replace({{ dbt_utils.get_url_host("referrer") }}, 'www.', '') as page_referrer_host,
         context_page_search as page_query,
         context_page_title as page_title,
         context_page_url as page_url,
@@ -76,5 +73,3 @@ page_views as (
 )
 
 select * from page_views
-
-
