@@ -1,5 +1,5 @@
 with source as (
-    select * from {{ source('api', 'customer_sales') }}
+    select * from {{ source('api', 'accounts') }}
 ),
 
 renamed as (
@@ -20,8 +20,8 @@ renamed as (
         cast(free_balance as numeric) as free_balance,
         
         -- dates
-        parse_timestamp('%Y-%m-%d %H:%M:%S', registration_date) as payment_date,
-        parse_timestamp('%Y-%m-%d %H:%M:%S', last_usage) as last_usage_date,
+        registration_date,  -- already in datetime format
+        last_usage as last_usage_date,  -- already in datetime format
         
         -- flags
         card_type,

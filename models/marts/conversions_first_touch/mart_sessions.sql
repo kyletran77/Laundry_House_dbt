@@ -8,7 +8,7 @@
     )}}
 
 
-{% set window_clause_first_and_last_pages = "         partition by session_id          order by timestamp asc          rows between unbounded preceding and unbounded following     " %}
+{% set window_clause_first_and_last_pages = "         partition by session_id          order by page_view_timestamp asc          rows between unbounded preceding and unbounded following     " %}
 
 {% set first_values = {
     "geo_city": "geo_city",
@@ -20,7 +20,6 @@
     "referrer_source": "referrer_source",
     "channel_medium": "channel_medium",
     "channel_source": "channel_source",
-    "device_browser_brand": "device_browser_brand",
     "device_is_mobile": "device_is_mobile",
     "device_platform": "device_platform",
     "utm_content": "utm_content",
@@ -88,7 +87,7 @@
                 struct(
                     sessionized_events.timestamp,
                     struct(
-                        sessionized_page_views.timestamp,
+                        sessionized_page_views.page_view_timestamp,
                         sessionized_page_views.page_view_id,
                         sessionized_page_views.page_url,
                         sessionized_page_views.page_referrer,
@@ -112,7 +111,7 @@
         left join
             {{ ref("int_sessionized_page_views") }} as sessionized_page_views using(page_view_id)
 
-       {{ dbt_utils.group_by(35) }}
+       {{ dbt_utils.group_by(34) }}
 
     )
 

@@ -3,7 +3,7 @@ version: 2
 sources:
   - name: api
     database: cohesive-envoy-443620-v5
-    schema: google_cloud_functon_laundry_house
+    schema: google_cloud_function_laundry_house
     tables:
       - name: accounts
         description: Raw customer sales data from the API 
