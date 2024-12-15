@@ -1,0 +1,1 @@
+select sum(weighted_revenue) from {{ ref('mart_conversions_multi_touch') }}
