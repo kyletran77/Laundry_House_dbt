@@ -1,17 +1,7 @@
 {% macro spot_check_conversions() %}
     {% set validation_query %}
-        -- Get 10 diverse users (mix of leads and sales)
-        with sample_users as (
-            select distinct email
-            from {{ ref('mart_conversions_first_touch') }}
-            where email is not null
-            and conversion_date > timestamp('2024-12-04')
-            order by rand()
-            limit 10
-        ),
-
-        -- Get all conversions for these users
-        user_conversions as (
+        -- Get 10 random conversions
+        with sample_conversions as (
             select 
                 email,
                 conversion_type,
@@ -20,91 +10,85 @@
                 first_touch_medium,
                 first_touch_campaign,
                 first_touch_timestamp,
-                revenue
+                cast(first_touch_session_id as string) as first_touch_session_id
             from {{ ref('mart_conversions_first_touch') }}
-            where email in (select email from sample_users)
+            where conversion_date > timestamp('2024-12-04')
+            order by rand()
+            limit 10
         ),
 
-        -- Get ALL sessions for these users
-        user_sessions as (
-            select 
-                s.blended_user_id as email,
-                s.session_id,
-                s.session_start_timestamp,
-                cast(s.utm_source as string) as utm_source,
-                cast(s.utm_medium as string) as utm_medium,
-                cast(s.utm_campaign as string) as utm_campaign,
-                cast(s.referrer_source as string) as referrer_source,
-                cast(s.referrer_medium as string) as referrer_medium,
-                cast(s.page_referrer as string) as page_referrer
-            from {{ ref('mart_sessions') }} s
-            where s.blended_user_id in (select email from sample_users)
-            and s.session_start_timestamp > timestamp('2024-12-04')
+        -- Check against sessions
+        validation_results as (
+            select
+                c.email,
+                c.conversion_type,
+                c.conversion_date,
+                -- Does first touch session exist in mart_sessions?
+                exists (
+                    select 1 
+                    from {{ ref('mart_sessions') }} s
+                    where cast(s.session_id as string) = c.first_touch_session_id
+                ) as session_exists,
+                
+                -- Does attribution match?
+                exists (
+                    select 1 
+                    from {{ ref('mart_sessions') }} s
+                    where cast(s.session_id as string) = c.first_touch_session_id
+                    and (
+                        cast(s.utm_source as string) = c.first_touch_source
+                        or cast(s.referrer_source as string) = c.first_touch_source
+                        or cast(s.channel_source as string) = c.first_touch_source
+                    )
+                    and (
+                        cast(s.utm_medium as string) = c.first_touch_medium
+                        or cast(s.referrer_medium as string) = c.first_touch_medium
+                        or cast(s.channel_medium as string) = c.first_touch_medium
+                    )
+                    and (cast(s.utm_campaign as string) = c.first_touch_campaign)
+                ) as attribution_matches,
+                
+                -- Is it really the first session?
+                not exists (
+                    select 1 
+                    from {{ ref('mart_sessions') }} s
+                    where s.blended_user_id = c.email
+                    and s.session_start_timestamp < c.first_touch_timestamp
+                ) as is_truly_first_touch,
+
+                -- Raw data for verification
+                c.first_touch_source,
+                c.first_touch_medium,
+                c.first_touch_campaign,
+                c.first_touch_timestamp,
+                c.first_touch_session_id
+            from sample_conversions c
         )
 
-        -- Output everything in chronological order
-        select
-            'CONVERSION' as record_type,
-            c.email,
-            cast(c.conversion_date as string) as event_timestamp,
-            c.conversion_type as event_detail,
-            concat(
-                'First Touch: ', coalesce(cast(c.first_touch_source as string), 'null'), 
-                ' / ', coalesce(cast(c.first_touch_medium as string), 'null'),
-                ' / ', coalesce(cast(c.first_touch_campaign as string), 'null'),
-                ' | Revenue: ', cast(c.revenue as string)
-            ) as additional_info
-        from user_conversions c
-
-        union all
-
-        select
-            'SESSION' as record_type,
-            s.email,
-            cast(s.session_start_timestamp as string) as event_timestamp,
-            s.session_id as event_detail,
-            concat(
-                'UTM: ', coalesce(s.utm_source, 'null'), 
-                ' / ', coalesce(s.utm_medium, 'null'),
-                ' / ', coalesce(s.utm_campaign, 'null'),
-                ' | Referrer: ', coalesce(s.referrer_source, 'null'),
-                ' / ', coalesce(s.referrer_medium, 'null'),
-                ' | Page: ', coalesce(s.page_referrer, 'null')
-            ) as additional_info
-        from user_sessions s
-
-        order by 
-            email,
-            event_timestamp,
-            record_type desc
+        select * from validation_results
     {% endset %}
 
     {% set results = run_query(validation_query) %}
     
     {% if execute %}
-        {{ log("=== Deep Dive: 10 Random User Journeys ===", info=True) }}
+        {{ log("=== Attribution Mapping Validation ===", info=True) }}
         {{ log("", info=True) }}
-        {% set current_user = none %}
         {% for row in results.rows %}
-            {% if row[1] != current_user %}
-                {% set current_user = row[1] %}
-                {{ log("", info=True) }}
-                {{ log("====================================", info=True) }}
-                {{ log("=== User: " ~ row[1] ~ " ===", info=True) }}
-                {{ log("====================================", info=True) }}
-            {% endif %}
-            
-            {% if row[0] == 'CONVERSION' %}
-                {{ log("[CONVERSION] - " ~ row[3], info=True) }}
-                {{ log("  Time: " ~ row[2], info=True) }}
-                {{ log("  " ~ row[4], info=True) }}
-                {{ log("", info=True) }}
-            {% else %}
-                {{ log("[SESSION] - " ~ row[3], info=True) }}
-                {{ log("  Time: " ~ row[2], info=True) }}
-                {{ log("  " ~ row[4], info=True) }}
-                {{ log("", info=True) }}
-            {% endif %}
+            {{ log("User: " ~ row[0], info=True) }}
+            {{ log("Conversion: " ~ row[1] ~ " on " ~ row[2], info=True) }}
+            {{ log("VALIDATION RESULTS:", info=True) }}
+            {{ log("  Session Exists: " ~ row[3], info=True) }}
+            {{ log("  Attribution Matches: " ~ row[4], info=True) }}
+            {{ log("  Is Truly First Touch: " ~ row[5], info=True) }}
+            {{ log("", info=True) }}
+            {{ log("DEBUG DATA:", info=True) }}
+            {{ log("  Source: " ~ row[6], info=True) }}
+            {{ log("  Medium: " ~ row[7], info=True) }}
+            {{ log("  Campaign: " ~ row[8], info=True) }}
+            {{ log("  Timestamp: " ~ row[9], info=True) }}
+            {{ log("  Session ID: " ~ row[10], info=True) }}
+            {{ log("----------------------------------------", info=True) }}
+            {{ log("", info=True) }}
         {% endfor %}
     {% endif %}
 
