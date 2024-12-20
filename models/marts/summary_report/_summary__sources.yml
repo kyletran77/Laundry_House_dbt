@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: summary_report_gcf
+    database: cohesive-envoy-443620-v5  # BigQuery project ID
+    schema: summary_report_gcf          # The schema name in BigQuery
+    tables:
+      - name: summary_reports
