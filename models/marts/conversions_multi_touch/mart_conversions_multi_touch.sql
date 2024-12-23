@@ -3,12 +3,21 @@
     unique_key = 'attribution_id',
     sort = 'conversion_date',
     partition_by = {'field': 'conversion_date', 'data_type': 'timestamp'},
-    cluster_by = ['email']
+    cluster_by = ['user_id']
 ) }}
 
-with conversion_sessions as (
+with standardized_users as (
+    select
+        user_id,
+        emails[offset(0)] as primary_email,
+        emails as all_emails
+    from {{ ref('int_standardized_users') }}
+),
+
+conversion_sessions as (
     select
         c.conversion_id,
+        c.user_id,
         c.email,
         c.conversion_date,
         c.revenue,
@@ -37,7 +46,7 @@ with conversion_sessions as (
         ) as total_sessions
     from {{ ref('mart_conversions_first_touch') }} c
     left join {{ ref('mart_sessions') }} s
-        on c.email = s.blended_user_id
+        on c.user_id = s.blended_user_id
         and s.session_start_timestamp <= c.conversion_date
         where c.conversion_date > timestamp('2024-12-04')
 ),

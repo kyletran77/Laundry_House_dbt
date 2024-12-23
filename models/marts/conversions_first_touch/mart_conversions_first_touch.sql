@@ -3,32 +3,42 @@
     unique_key = 'conversion_id',
     sort = 'conversion_date',
     partition_by = {'field': 'conversion_date', 'data_type': 'timestamp'},
-    cluster_by = ['email', 'conversion_type']
+    cluster_by = ['user_id', 'conversion_type']
 ) }}
 
-with conversions as (
+with standardized_users as (
+    select
+        user_id,
+        emails[offset(0)] as primary_email,
+        emails as all_emails
+    from {{ ref('int_standardized_users') }}
+),
+
+conversions as (
     -- Lead conversions
     select
         'lead' as conversion_type,
-        email,
-        cast(sign_up_date as timestamp) as conversion_date,
+        l.user_id,
+        l.email,
+        cast(l.sign_up_date as timestamp) as conversion_date,
         cast(0 as numeric) as revenue,
-        concat('lead_', email) as conversion_id
-    from {{ ref('mart_leads') }}
-    where cast(sign_up_date as timestamp) > timestamp('2024-12-04')  -- After Dec 4th
+        concat('lead_', l.user_id) as conversion_id
+    from {{ ref('mart_leads') }} l
+    where cast(sign_up_date as timestamp) > timestamp('2024-12-04')
     
     union all
     
     -- Sales conversions
     select
         'sale' as conversion_type,
-        email,
-        cast(first_payment_date as timestamp) as conversion_date,
-        lifetime_value as revenue,
-        concat('sale_', email) as conversion_id
-    from {{ ref('mart_sales') }}
-    where cast(first_payment_date as timestamp) > timestamp('2024-12-04')  -- After Dec 4th
-),
+        s.user_id,
+        s.email,
+        cast(s.first_payment_date as timestamp) as conversion_date,
+        s.lifetime_value as revenue,
+        concat('sale_', s.user_id) as conversion_id
+    from {{ ref('mart_sales') }} s
+    where cast(first_payment_date as timestamp) > timestamp('2024-12-04')
+)
 
 first_touch_sessions as (
     select
@@ -82,7 +92,7 @@ final as (
         ) as days_to_convert
     from conversions c
     left join first_touch_sessions fs 
-        on c.email = fs.blended_user_id
+        on c.user_id = fs.blended_user_id
         and fs.session_start_timestamp <= c.conversion_date  -- Only include sessions before conversion
     qualify row_number() over (
         partition by c.conversion_id 
