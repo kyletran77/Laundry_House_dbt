@@ -1,8 +1,10 @@
-with user_source as (
+-- Step 1: Create a Single Unified Contact Table with standardized fields
+with unified_contacts as (
     select
-        customer_id,
-        nullif(trim(email), '') as email,  -- Convert empty strings to nulls
-        nullif(trim(phone_number), '') as phone_number,  -- Convert empty strings to nulls
+        cast(customer_id as string) as contact_id,
+        'customer_sales' as source_table,
+        nullif(trim(email), '') as email_clean,
+        nullif(trim(phone_number), '') as phone_clean,
         registration_date,
         last_usage_date,
         total_payment,
@@ -10,104 +12,130 @@ with user_source as (
         balance,
         free_balance
     from {{ ref('stg_customer_sales') }}
+    where nullif(trim(email), '') is not null 
+       or nullif(trim(phone_number), '') is not null
 ),
 
--- Step 1: Create pairs of matching users based on email
-email_matches as (
-    select distinct
-        least(a.customer_id, b.customer_id) as user_a,
-        greatest(a.customer_id, b.customer_id) as user_b,
-        a.email as matching_email
-    from user_source a
-    inner join user_source b
-        on a.email = b.email
-        and a.customer_id != b.customer_id
-        and a.email is not null
+-- Step 2: Assign Initial Temporary IDs
+initial_ids as (
+    select
+        *,
+        row_number() over (order by contact_id) as temp_id
+    from unified_contacts
 ),
 
--- Step 2: Create pairs of matching users based on phone
-phone_matches as (
-    select distinct
-        least(a.customer_id, b.customer_id) as user_a,
-        greatest(a.customer_id, b.customer_id) as user_b,
-        a.phone_number as matching_phone
-    from user_source a
-    inner join user_source b
-        on a.phone_number = b.phone_number
-        and a.customer_id != b.customer_id
-        and a.phone_number is not null
+-- Step 3: First Iteration - Find direct matches
+iteration_1 as (
+    select
+        a.contact_id,
+        a.email_clean,
+        a.phone_clean,
+        min(b.temp_id) as temp_id,
+        a.registration_date,
+        a.last_usage_date,
+        a.total_payment,
+        a.cycle_total,
+        a.balance,
+        a.free_balance
+    from initial_ids a
+    join initial_ids b
+        on (
+            a.email_clean = b.email_clean and a.email_clean is not null
+        ) or (
+            a.phone_clean = b.phone_clean and a.phone_clean is not null
+        )
+    group by 
+        a.contact_id,
+        a.email_clean,
+        a.phone_clean,
+        a.registration_date,
+        a.last_usage_date,
+        a.total_payment,
+        a.cycle_total,
+        a.balance,
+        a.free_balance
 ),
 
--- Step 3: Combine all matches
-all_matches as (
-    select user_a, user_b, 'email' as match_type, matching_email as match_value 
-    from email_matches
-    union all
-    select user_a, user_b, 'phone' as match_type, matching_phone as match_value 
-    from phone_matches
+-- Step 4: Second Iteration - Catch multi-hop connections
+iteration_2 as (
+    select
+        a.contact_id,
+        a.email_clean,
+        a.phone_clean,
+        min(b.temp_id) as temp_id,
+        a.registration_date,
+        a.last_usage_date,
+        a.total_payment,
+        a.cycle_total,
+        a.balance,
+        a.free_balance
+    from iteration_1 a
+    join iteration_1 b
+        on (
+            a.email_clean = b.email_clean and a.email_clean is not null
+        ) or (
+            a.phone_clean = b.phone_clean and a.phone_clean is not null
+        )
+    group by 
+        a.contact_id,
+        a.email_clean,
+        a.phone_clean,
+        a.registration_date,
+        a.last_usage_date,
+        a.total_payment,
+        a.cycle_total,
+        a.balance,
+        a.free_balance
 ),
 
--- Step 4: Find connected components using a simpler approach
-connected_groups as (
-    select distinct
-        customer_id,
-        first_value(customer_id) over (
-            partition by group_id
-            order by customer_id
-        ) as master_user_id
-    from (
-        select 
-            us.customer_id,
-            coalesce(
-                min(em.group_id),
-                min(pm.group_id)
-            ) as group_id
-        from user_source us
-        left join (
-            select customer_id, min(email) over (partition by email) as group_id
-            from user_source
-            where email is not null
-        ) em on us.customer_id = em.customer_id
-        left join (
-            select customer_id, min(phone_number) over (partition by phone_number) as group_id
-            from user_source
-            where phone_number is not null
-        ) pm on us.customer_id = pm.customer_id
-        group by us.customer_id
-    )
-    where group_id is not null
+-- Step 5: Third Iteration - Final pass to ensure full convergence
+iteration_3 as (
+    select
+        a.contact_id,
+        a.email_clean,
+        a.phone_clean,
+        min(b.temp_id) as temp_id,
+        a.registration_date,
+        a.last_usage_date,
+        a.total_payment,
+        a.cycle_total,
+        a.balance,
+        a.free_balance
+    from iteration_2 a
+    join iteration_2 b
+        on (
+            a.email_clean = b.email_clean and a.email_clean is not null
+        ) or (
+            a.phone_clean = b.phone_clean and a.phone_clean is not null
+        )
+    group by 
+        a.contact_id,
+        a.email_clean,
+        a.phone_clean,
+        a.registration_date,
+        a.last_usage_date,
+        a.total_payment,
+        a.cycle_total,
+        a.balance,
+        a.free_balance
 ),
 
--- Step 5: Aggregate user attributes
+-- Step 6: Final aggregation of user attributes
 final as (
     select
-        coalesce(cg.master_user_id, us.customer_id) as master_user_id,
-        array_agg(distinct us.customer_id) as merged_customer_ids,
-        array_agg(distinct us.email ignore nulls) as all_emails,
-        array_agg(distinct us.phone_number ignore nulls) as all_phone_numbers,
-        min(us.registration_date) as first_registration_date,
-        max(us.last_usage_date) as last_usage_date,
-        sum(us.total_payment) as total_payments,
-        sum(us.cycle_total) as total_cycle_usage,
-        sum(us.balance) as combined_balance,
-        sum(us.free_balance) as combined_free_balance,
-        count(distinct us.customer_id) as number_of_merged_accounts
-    from user_source us
-    left join connected_groups cg
-        on us.customer_id = cg.customer_id
-    group by coalesce(cg.master_user_id, us.customer_id)
+        temp_id as user_id,
+        array_agg(distinct contact_id) as contact_ids,
+        array_agg(distinct email_clean ignore nulls) as emails,
+        array_agg(distinct phone_clean ignore nulls) as phone_numbers,
+        min(registration_date) as first_registration_date,
+        max(last_usage_date) as last_usage_date,
+        sum(total_payment) as total_payments,
+        sum(cycle_total) as total_cycle_usage,
+        sum(balance) as combined_balance,
+        sum(free_balance) as combined_free_balance,
+        count(distinct contact_id) as number_of_merged_accounts
+    from iteration_3
+    group by temp_id
 )
 
-select 
-    master_user_id,
-    merged_customer_ids,
-    all_emails,
-    all_phone_numbers,
-    first_registration_date,
-    last_usage_date,
-    total_payments,
-    total_cycle_usage,
-    combined_balance,
-    combined_free_balance,
-    number_of_merged_accounts
-from final
+select * from final
