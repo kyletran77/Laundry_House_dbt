@@ -19,21 +19,24 @@ with user_events as (
 standardized_users as (
     select
         user_id,
-        emails[offset(0)] as primary_email,
-        emails as all_emails
+        emails,  -- This is now an array field
+        first_registration_date
     from {{ ref('int_standardized_users') }}
 ),
 
 leads_with_emails as (
     select
         su.user_id,
-        su.primary_email as email,
+        lower(trim(ue.email)) as email,
         min(ue.first_seen_at) as sign_up_date
     from user_events ue
     inner join standardized_users su
-        on lower(trim(ue.email)) = su.primary_email
-        or lower(trim(ue.email)) in unnest(su.all_emails)
-    group by su.user_id, su.primary_email
+        on lower(trim(ue.email)) in unnest(su.emails)  -- Changed to match the emails array field
+    where 
+        ue.email is not null
+        and ue.email != ''
+        and ue.email like '%@%'  -- basic email validation
+    group by su.user_id, ue.email
 )
 
 select * from leads_with_emails

@@ -1,5 +1,5 @@
 {{ config(
-    materialized = 'incremental',
+    materialized = 'table',
     unique_key = 'session_id',
     sort = 'session_start_timestamp',
     partition_by = {'field': 'session_start_timestamp', 'data_type': 'timestamp', 'granularity': var('segment_bigquery_partition_granularity')},

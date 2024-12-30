@@ -8,9 +8,8 @@
 
 with standardized_users as (
     select
-        user_id,
-        emails[offset(0)] as primary_email,
-        emails as all_emails
+        cast(user_id as string) as user_id,
+        emails
     from {{ ref('int_standardized_users') }}
 ),
 
@@ -18,12 +17,14 @@ conversions as (
     -- Lead conversions
     select
         'lead' as conversion_type,
-        l.user_id,
+        su.user_id,
         l.email,
         cast(l.sign_up_date as timestamp) as conversion_date,
         cast(0 as numeric) as revenue,
-        concat('lead_', l.user_id) as conversion_id
+        concat('lead_', su.user_id) as conversion_id
     from {{ ref('mart_leads') }} l
+    inner join standardized_users su
+        on l.email in unnest(su.emails)
     where cast(sign_up_date as timestamp) > timestamp('2024-12-04')
     
     union all
@@ -31,18 +32,20 @@ conversions as (
     -- Sales conversions
     select
         'sale' as conversion_type,
-        s.user_id,
+        su.user_id,
         s.email,
         cast(s.first_payment_date as timestamp) as conversion_date,
         s.lifetime_value as revenue,
-        concat('sale_', s.user_id) as conversion_id
+        concat('sale_', su.user_id) as conversion_id
     from {{ ref('mart_sales') }} s
+    inner join standardized_users su
+        on s.email in unnest(su.emails)
     where cast(first_payment_date as timestamp) > timestamp('2024-12-04')
-)
+),
 
 first_touch_sessions as (
     select
-        blended_user_id,
+        cast(blended_user_id as string) as blended_user_id,
         anonymous_id,
         session_id,
         session_start_timestamp,
@@ -64,13 +67,27 @@ first_touch_sessions as (
         page_referrer,
         page_referrer_host
     from {{ ref('mart_sessions') }}
-    where session_start_timestamp > timestamp('2024-12-04')  -- After Dec 4th
+    where session_start_timestamp > timestamp('2024-12-04')
+),
+
+user_first_sessions as (
+    select
+        blended_user_id,
+        first_value(session_id) over (
+            partition by blended_user_id 
+            order by session_start_timestamp asc
+        ) as first_session_id,
+        min(session_start_timestamp) over (
+            partition by blended_user_id
+        ) as first_session_timestamp
+    from first_touch_sessions
 ),
 
 final as (
     select distinct
         c.conversion_id,
         c.conversion_type,
+        c.user_id,
         c.email,
         c.conversion_date,
         c.revenue,
@@ -82,22 +99,19 @@ final as (
         fs.utm_content as first_touch_content,
         fs.page_referrer as first_touch_referrer,
         fs.page_referrer_host as first_touch_referrer_host,
-        fs.session_start_timestamp as first_touch_timestamp,
-        fs.session_id as first_touch_session_id,
+        ufs.first_session_timestamp as first_touch_timestamp,
+        ufs.first_session_id as first_touch_session_id,
         -- Time to convert
         timestamp_diff(
             c.conversion_date,
-            fs.session_start_timestamp,
+            ufs.first_session_timestamp,
             day
         ) as days_to_convert
     from conversions c
+    left join user_first_sessions ufs
+        on c.email = ufs.blended_user_id  -- Try matching on email first
     left join first_touch_sessions fs 
-        on c.user_id = fs.blended_user_id
-        and fs.session_start_timestamp <= c.conversion_date  -- Only include sessions before conversion
-    qualify row_number() over (
-        partition by c.conversion_id 
-        order by fs.session_start_timestamp asc
-    ) = 1  -- Get the first session for each conversion
+        on ufs.first_session_id = fs.session_id
 )
 
 select * from final
