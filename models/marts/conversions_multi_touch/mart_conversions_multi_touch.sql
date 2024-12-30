@@ -3,22 +3,20 @@
     unique_key = 'attribution_id',
     sort = 'conversion_date',
     partition_by = {'field': 'conversion_date', 'data_type': 'timestamp'},
-    cluster_by = ['user_id']
+    cluster_by = ['email']
 ) }}
 
 with standardized_users as (
     select
-        user_id,
-        emails[offset(0)] as primary_email,
-        emails as all_emails
+        cast(user_id as string) as user_id,
+        emails
     from {{ ref('int_standardized_users') }}
 ),
 
 conversion_sessions as (
     select
         c.conversion_id,
-        c.user_id,
-        c.email,
+        c.email,  -- Using email as the primary identifier
         c.conversion_date,
         c.revenue,
         c.conversion_type,
@@ -46,9 +44,9 @@ conversion_sessions as (
         ) as total_sessions
     from {{ ref('mart_conversions_first_touch') }} c
     left join {{ ref('mart_sessions') }} s
-        on c.user_id = s.blended_user_id
+        on c.email = s.blended_user_id  -- Changed to join on email
         and s.session_start_timestamp <= c.conversion_date
-        where c.conversion_date > timestamp('2024-12-04')
+    where c.conversion_date > timestamp('2024-12-04')
 ),
 
 attribution_weights as (
@@ -68,13 +66,13 @@ attribution_weights as (
 )
 
 select
-    concat(conversion_id, '_', session_id) as attribution_id,
+    concat(conversion_id, '_', coalesce(session_id, 'no_session')) as attribution_id,
     email,
-    conversion_date,  -- Added this field
+    conversion_date,
     conversion_type,
-    source,
-    medium,
-    utm_campaign,
+    coalesce(source, '(no source)') as source,
+    coalesce(medium, '(no medium)') as medium,
+    coalesce(utm_campaign, '(no campaign)') as utm_campaign,
     case when conversion_type = 'lead' then weight else 0 end as weighted_lead,
     case when conversion_type = 'sale' then weight else 0 end as weighted_sale,
     revenue * weight as weighted_revenue
