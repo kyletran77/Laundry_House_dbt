@@ -17,9 +17,17 @@
     )
 }}
 
+with combined_data as (
+    select 
+        a.*,
+        u.emails,
+        u.phone_numbers
+    from {{ ref('int_standardized_accounts') }} a
+    join {{ ref('int_standardized_users') }} u using (user_id)
+)
+
 select 
     cast(user_id as string) as user_id,
-    contact_ids,
     emails,
     phone_numbers,
     first_registration_date,
@@ -29,9 +37,8 @@ select
     combined_balance,
     combined_free_balance,
     number_of_merged_accounts,
-    array_to_string(contact_ids, ',') as contact_ids_string,
     array_to_string(emails, ',') as emails_string,
     array_to_string(phone_numbers, ',') as phone_numbers_string
-from {{ ref('int_standardized_users') }}
+from combined_data
 
 {% endsnapshot %}

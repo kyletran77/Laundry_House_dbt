@@ -9,9 +9,11 @@ accounts_with_users as (
         su.user_id,
         cs.*
     from standardized_users su
+    cross join unnest(su.emails) as email
+    cross join unnest(su.phone_numbers) as phone
     join {{ ref('stg_customer_sales') }} cs
-        on cs.email = any(su.emails)
-        or cs.phone_number = any(su.phone_numbers)
+        on cs.email = email
+        or cs.phone_number = phone
 ),
 
 -- Step 3: Group by user_id
@@ -24,7 +26,7 @@ final as (
         sum(cycle_total) as total_cycle_usage,
         sum(balance) as combined_balance,
         sum(free_balance) as combined_free_balance,
-        count(distinct contact_id) as number_of_merged_accounts
+        count(*) as number_of_merged_accounts
     from accounts_with_users
     group by user_id
 )

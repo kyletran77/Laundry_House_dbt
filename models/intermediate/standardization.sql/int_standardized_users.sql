@@ -7,19 +7,23 @@ with unified_contacts as (
     from {{ ref('stg_customer_sales') }}
     where nullif(trim(email), '') is not null 
        or nullif(trim(phone_number), '') is not null
+    
     union all
+    
     select
         'segment' as source_table,
         nullif(trim(email), '') as email_clean,
         nullif(trim(phone_number), '') as phone_clean
-    from {{ref('stage_segment_users')}}
+    from {{ ref('stage_segment_users') }}
+    where nullif(trim(email), '') is not null 
+       or nullif(trim(phone_number), '') is not null
 ),
 
 -- Step 2: Assign Initial Temporary IDs
 initial_ids as (
     select
         *,
-        row_number() over (order by contact_id) as temp_id
+        row_number() over (order by email_clean, phone_clean) as temp_id
     from unified_contacts
 ),
 
@@ -28,7 +32,7 @@ iteration_1 as (
     select
         a.email_clean,
         a.phone_clean,
-        min(b.temp_id) as temp_id,
+        min(b.temp_id) as temp_id
     from initial_ids a
     join initial_ids b
         on (
@@ -38,7 +42,7 @@ iteration_1 as (
         )
     group by 
         a.email_clean,
-        a.phone_clean,
+        a.phone_clean
 ),
 
 -- Step 4: Second Iteration - Catch multi-hop connections
@@ -46,7 +50,7 @@ iteration_2 as (
     select
         a.email_clean,
         a.phone_clean,
-        min(b.temp_id) as temp_id,
+        min(b.temp_id) as temp_id
     from iteration_1 a
     join iteration_1 b
         on (
@@ -64,7 +68,7 @@ iteration_3 as (
     select
         a.email_clean,
         a.phone_clean,
-        min(b.temp_id) as temp_id,
+        min(b.temp_id) as temp_id
     from iteration_2 a
     join iteration_2 b
         on (
