@@ -4,8 +4,9 @@ with segment_identifies as (
         anonymous_id,
         user_id,
         nullif(trim(email), '') as email,
-        nullif(trim(phone), '') as phone_number
-    from {{ ref('segment_identifies') }}
+        nullif(trim(phone), '') as phone_number,
+        sent_at as timestamp
+    from {{ source('gtm_server_side', 'identifies') }}
     where nullif(trim(email), '') is not null 
        or nullif(trim(phone), '') is not null
 ),
