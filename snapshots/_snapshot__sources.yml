@@ -1,6 +1,5 @@
+version: 2
+
 snapshots:
-  my_new_project:
-    target_schema: snapshots
-    unique_key: id
-    strategy: timestamp
-    updated_at: updated_at
+  - name: standardized_accounts_snapshot  # Name of your snapshot
+    schema: snapshots     

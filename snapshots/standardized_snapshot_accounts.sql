@@ -1,12 +1,21 @@
 {% snapshot standardized_accounts_snapshot %}
 
-{{ config(
-    target_schema='snapshots',      -- Where snapshots will be stored
-    unique_key='user_id',          -- Primary identifier for each record
-    strategy='timestamp',          -- How DBT detects changes
-    updated_at='_fivetran_synced', -- Field that indicates when record was updated
-    invalidate_hard_deletes=True   -- Handle deleted records
-) }}
+{{
+    config(
+        target_schema='snapshots',
+        unique_key='user_id',
+        strategy='check',
+        check_cols=[
+            'total_payments',
+            'total_cycle_usage',
+            'combined_balance',
+            'combined_free_balance',
+            'last_usage_date',
+            'number_of_merged_accounts'
+        ],
+        invalidate_hard_deletes=True
+    )
+}}
 
 select 
     cast(user_id as string) as user_id,
@@ -20,7 +29,9 @@ select
     combined_balance,
     combined_free_balance,
     number_of_merged_accounts,
-    _fivetran_synced
+    array_to_string(contact_ids, ',') as contact_ids_string,
+    array_to_string(emails, ',') as emails_string,
+    array_to_string(phone_numbers, ',') as phone_numbers_string
 from {{ ref('int_standardized_users') }}
 
 {% endsnapshot %}

@@ -127,14 +127,14 @@ final as (
         -- Rolling metrics (30-day window)
         sum(daily_revenue) over (
             partition by user_id
-            order by activity_date
-            range between interval 30 day preceding and current row
+            order by unix_seconds(activity_date)
+            range between 2592000 preceding and current row  -- 30 days in seconds
         ) as rolling_30d_revenue,
         
         sum(daily_cycles) over (
             partition by user_id
-            order by activity_date
-            range between interval 30 day preceding and current row
+            order by unix_seconds(activity_date)
+            range between 2592000 preceding and current row  -- 30 days in seconds
         ) as rolling_30d_cycles
         
     from daily_metrics
