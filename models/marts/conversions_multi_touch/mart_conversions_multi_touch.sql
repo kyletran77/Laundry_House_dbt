@@ -1,6 +1,6 @@
 {{ config(
-    materialized = 'incremental',
-    unique_key = 'attribution_id',
+    materialized = 'table',
+    unique_key = ['conversion_id', 'session_id'],
     sort = 'conversion_date',
     partition_by = {'field': 'conversion_date', 'data_type': 'timestamp'},
     cluster_by = ['user_id']

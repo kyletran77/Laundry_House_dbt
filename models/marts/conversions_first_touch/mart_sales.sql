@@ -20,13 +20,15 @@ with standardized_accounts as (
 standardized_users as (
     select
         user_id,
-        emails[offset(0)] as email
+        emails[offset(0)] as email,
+        phone_numbers[offset(0)] as phone_number
     from {{ ref('int_standardized_users') }}
 )
 
 select
     sa.user_id,
     su.email,
+    su.phone_number,
     sa.lifetime_value,
     sa.first_payment_date
 from standardized_accounts sa

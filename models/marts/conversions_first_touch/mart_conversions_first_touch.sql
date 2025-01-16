@@ -1,5 +1,5 @@
 {{ config(
-    materialized = 'incremental',
+    materialized = 'table',
     unique_key = 'conversion_id',
     sort = 'conversion_date',
     partition_by = {'field': 'conversion_date', 'data_type': 'timestamp'},
